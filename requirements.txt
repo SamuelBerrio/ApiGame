@@ -4,3 +4,4 @@ requests
 llamaapi
 opencv-python
 openai
+numpy
