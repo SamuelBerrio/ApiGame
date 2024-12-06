@@ -1,4 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
+import time
+import cv2
+import numpy as np
+import os
+
+from threading import Thread
+from collections import deque
+
+import cv2
 from llama_service import (
     generate_multiple_choice_question,
     generate_true_false_question,
@@ -9,12 +18,15 @@ from utils import setup_logging, create_error_response
 import logging
 import os
 
+from flask_cors import CORS
+from camera_service import generate_video, get_current_number
 # Configurar logging utilizando la función de utils.py
 setup_logging()
 
 # Inicializar la aplicación Flask
 app = Flask(__name__)
-
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+    
 def validate_request(data, required_fields):
     """
     Valida que los campos requeridos estén presentes en la solicitud JSON.
@@ -134,32 +146,19 @@ def evaluate_user_response():
     }
     return jsonify(response), 200
 
-def get_current_number():
-    """Retorna el número actualmente detectado por la cámara leyendo desde el archivo."""
-    if os.path.exists('current_number.txt'):
-        try:
-            with open('current_number.txt', 'r') as f:
-                content = f.read().strip()
-                if content == '':
-                    number = -1  # Archivo vacío, número expirado.
-                else:
-                    number = int(content)
-        except Exception:
-            number = -1  # Error al leer el archivo.
-    else:
-        number = -1  # Archivo no existe, no hay número válido.
-    return number
 
-@app.route('/get-current-number', methods=['GET'])
-def get_number():
-    """
-    Endpoint para obtener el número actualmente detectado por la cámara.
-    """
-    number = get_current_number()
-    response = {
-        'current_number': number
-    }
-    return jsonify(response), 200
+@app.route('/video')
+def video():
+    return Response(generate_video(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/get-score')
+def puntaje():
+    return jsonify(get_current_number())   
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
 @app.errorhandler(404)
 def not_found(error):
@@ -184,7 +183,3 @@ def internal_error(error):
     """
     logging.error(f"Error interno del servidor: {error}")
     return create_error_response("Error interno del servidor.", 500)
-
-if __name__ == '__main__':
-    # Ejecutar la aplicación en modo de depuración. Desactivar en producción.
-    app.run(debug=True)
